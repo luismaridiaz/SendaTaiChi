@@ -62,6 +62,7 @@ button{font:inherit;color:inherit}
 header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px;margin-bottom:14px;box-shadow:var(--sh-s)}
 .pill{display:inline-flex;background:var(--j1);color:var(--j7);font-size:13px;font-weight:600;padding:5px 13px;border-radius:99px;margin-bottom:12px;letter-spacing:.02em}
+.atabs{position:sticky;top:0;z-index:5;display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:5px;padding:8px 0;margin:6px 0 10px;background:var(--paper)}.atab{flex:1 1 auto;border:1.5px solid var(--line);background:var(--card);color:var(--j7);font-family:inherit;font-weight:700;font-size:10.5px;line-height:1;letter-spacing:.03em;text-transform:uppercase;padding:11px 4px;white-space:nowrap;border-radius:999px;cursor:pointer}.atab.on{background:var(--j7);color:var(--paper);border-color:transparent}.asec[hidden]{display:none}
 .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:none;border:1.5px solid var(--line);background:var(--card);border-radius:99px;padding:8px 16px;font-weight:600;font-size:15px;cursor:pointer;transition:all .2s}
@@ -616,6 +617,25 @@ const GROUPS = {
    ===================================================================== */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+/* Pestañas de sección para pantallas largas. specs: [{k, l, from: selector, n: n-ésimo hijo que lo cumple}]; opts: {id, start, end: selector del primer hijo que queda siempre visible al final} */
+const TABST = {};
+function tabify(wrap, specs, opts) {
+  opts = opts || {};
+  const kids = [...wrap.children], find = (sel, n) => { let c = 0; for (let i = 0; i < kids.length; i++) if (kids[i].matches(sel) && c++ === (n || 0)) return i; return -1; };
+  const idx = specs.map(s => find(s.from, s.n)); if (idx.some(i => i < 0)) return;
+  const last = idx[idx.length - 1], end = opts.end ? kids.findIndex((e, i) => i > last && e.matches(opts.end)) : -1;
+  const anchor = end >= 0 ? kids[end] : null;
+  let cur = TABST[opts.id] && specs.some(s => s.k === TABST[opts.id]) ? TABST[opts.id] : (opts.start && specs.some(s => s.k === opts.start) ? opts.start : specs[0].k);
+  const nav = document.createElement('nav'); nav.className = 'atabs'; const boxes = [];
+  specs.forEach((s, i) => {
+    const box = document.createElement('div'); box.className = 'asec'; box.dataset.sec = s.k; box.hidden = s.k !== cur;
+    kids.slice(idx[i], i + 1 < idx.length ? idx[i + 1] : (end >= 0 ? end : kids.length)).forEach(e => box.appendChild(e)); boxes.push(box);
+    const b = document.createElement('button'); b.className = 'atab' + (s.k === cur ? ' on' : ''); b.textContent = s.l; b.dataset.at = s.k;
+    b.onclick = () => { cur = s.k; if (opts.id) TABST[opts.id] = cur; [...nav.children].forEach(x => x.classList.toggle('on', x === b)); boxes.forEach(x => x.hidden = x.dataset.sec !== cur); const t = nav.getBoundingClientRect().top; if (t < 4) window.scrollTo({ top: Math.max(0, t + window.scrollY - 8), behavior: 'smooth' }); };
+    nav.appendChild(b);
+  });
+  wrap.insertBefore(nav, anchor); boxes.forEach(b => wrap.insertBefore(b, anchor));
+}
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const lerp = (a, b, t) => a + (b - a) * t;
 const sm = x => 0.5 - 0.5 * Math.cos(2 * Math.PI * x);          // 0→1→0 por unidad
@@ -1486,6 +1506,8 @@ function renderAbout() {
     <div class="abhero"><div class="abtxt"><div class="kicker">Programa de 28 días</div><h1>Senda Taiji</h1><p>Camina con los principios del Tai Chi: pasos lentos, peso controlado y respiración tranquila, con animaciones y globos que marcan los segundos.</p></div>
       <svg class="fig" viewBox="52 22 196 220" id="abFig"></svg></div>
     <div class="facts"><div><b>28</b><small>días</small></div><div><b>10–15</b><small>min al día</small></div><div><b>17</b><small>técnicas</small></div><div><b>6</b><small>respiraciones</small></div></div>
+    <nav class="atabs" id="atabs">${[['tc', 'Qué es'], ['ob', 'Objetivos'], ['pr', 'Programa'], ['us', 'Cómo usar'], ['ev', 'Evidencia']].map(([k, l], i) => `<button class="atab ${i ? '' : 'on'}" data-at="${k}">${l}</button>`).join('')}</nav>
+    <div class="asec" data-sec="tc">
     <div class="card"><h3>Qué es el Tai Chi</h3>
       <p>El Tai Chi (太极拳, tàijíquán) es un arte marcial chino de origen taoísta que, con el tiempo, se ha convertido sobre todo en una práctica de salud y equilibrio. Su forma más conocida, el <b>estilo Yang</b>, se caracteriza por movimientos lentos, continuos y circulares, con el peso siempre en movimiento y la respiración tranquila. Esta app adapta ese estilo a lo más cotidiano que hacemos: <b>caminar</b>.</p>
       <h3 class="sec">Los cuatro principios que verás en cada paso</h3>
@@ -1499,6 +1521,7 @@ function renderAbout() {
       <h3 class="sec">Por qué se llama «senda»</h3>
       <p>Una senda no se recorre de golpe: tiene etapas. Las cuatro semanas de esta app son esas etapas: <b>base</b> (aprender la postura y el traslado de peso), <b>equilibrio</b> (añadir pasos y reducir el apoyo), <b>fluidez</b> (acompasar la respiración) e <b>integración</b> (reunirlo todo). No hay que correr: hay que llegar. Y, como en cualquier senda, volver a empezar también cuenta.</p>
       <div class="note jade" style="margin-top:12px"><b>Una nota honesta.</b> Esta app se inspira en el estilo Yang, pero no enseña una forma tradicional completa ni sustituye a un maestro. Toma prestados sus principios y los aplica a caminar, que es lo que hacemos todos los días.</div></div>
+    </div><div class="asec" data-sec="ob" hidden>
     <h2 class="sec2">Objetivos para ti</h2>
     <p class="muted" style="margin-top:-4px">Elige un perfil para ver qué trabaja el programa, en lo físico y en lo mental.</p>
     <div class="mapa">${Object.entries(GROUPS).map(([id, g]) => `<button class="mrow ${id === sel ? 'on' : ''}" data-gs="${id}"><span class="me">${g.emo}</span><span class="mt"><b>${MAPA[id][0]}</b><small><u>Físico</u> ${MAPA[id][1]}</small><small><u class="mu">Mental</u> ${MAPA[id][2]}</small></span></button>`).join('')}</div>
@@ -1508,25 +1531,33 @@ function renderAbout() {
     <div id="objs"></div>
     <div class="card nuance"><h3>Matiz según tu figura</h3><div class="chips" id="ssel">${[['f', 'Mujer'], ['m', 'Hombre'], ['', 'Neutra']].map(([v, l]) => `<button class="chip ${v === sx ? 'on' : ''}" data-ss="${v}">${l}</button>`).join('')}</div>
       <div class="nrow"><div class="nfig"><svg class="fig" id="nfig" viewBox="82 26 136 214"></svg></div><p id="ntxt"></p></div></div>
+    </div><div class="asec" data-sec="pr" hidden>
     <div class="card"><h3>Qué vas a encontrar</h3><ul class="ticks">
       <li><b>Programa</b>: 4 semanas, un día tras otro, adaptadas a tu grupo.</li>
       <li><b>Técnicas</b>: 17 movimientos animados con pasos, errores frecuentes y versión más fácil o más difícil.</li>
       <li><b>Respirar</b>: 6 técnicas con globo, cuenta en segundos y sonido suave opcional.</li>
       <li><b>Seguimiento</b>: días completados, racha y minutos, guardados solo en tu dispositivo.</li></ul></div>
     <div class="card"><h3>Objetivo de cada semana</h3>${WEEKS.map((w, i) => `<p><b>Semana ${i + 1} · ${WNAMES[i]}.</b> ${w.goal}</p>`).join('')}</div>
+    </div><div class="asec" data-sec="us" hidden>
     <div class="card"><h3>Cómo usarla</h3><ol class="cues">
       <li>Elige tu grupo y tu figura guía. Puedes cambiarlos cuando quieras.</li>
       <li>Cada día, mira las técnicas tocando cada paso, y pulsa «Iniciar sesión guiada».</li>
       <li>Practica en suelo firme y despejado, con una silla o pared cerca.</li>
       <li>Avanza a tu ritmo: si un día no puedes, repítelo mañana. La constancia importa más que la intensidad.</li></ol>
       <div class="note"><b>Seguridad.</b> ${STOP_RULE} Si tienes vértigo, problemas de equilibrio o riesgo de caídas, consulta antes con un profesional sanitario.</div></div>
+    </div><div class="asec" data-sec="ev" hidden>
     <div class="card"><h3>Qué dice la evidencia</h3>
       <p>Los ensayos y metaanálisis de Tai Chi en personas mayores asocian su práctica regular con menos caídas y mejor equilibrio <sup>1,2</sup>, aunque la certeza de la evidencia es limitada y depende del programa y de la población. Los programas de ejercicio con equilibrio y fuerza reducen las caídas en personas que viven en la comunidad <sup>3</sup>. Las guías de la OMS recomiendan a los adultos mayores actividad física variada con énfasis en equilibrio funcional y fuerza, al menos 3 días por semana <sup>7</sup>.</p>
       <p>La respiración lenta se ha relacionado con mayor sensación de relajación y cambios en la actividad del sistema nervioso autónomo, aunque muchos estudios son pequeños <sup>4</sup>.</p>
       <div class="note"><b>Importante.</b> Esta app no ha sido evaluada en estudios clínicos ni validada por un profesional. Es un programa orientativo de ejercicio suave inspirado en esos principios y no sustituye la valoración de un profesional sanitario.</div></div>
     <div class="card"><h3>Referencias</h3><ol class="refl">${REFS.map(r => `<li>${r.t}${r.u ? ` <a href="${r.u}" target="_blank" rel="noopener">Ver</a>` : ''}</li>`).join('')}</ol></div>
+    </div>
     ${first ? '<button class="btn gold" id="go">Empezar el programa</button>' : '<button class="btn primary" id="go">Entendido</button>'}</div>`;
   const hf = $('#abFig'), uh = makeFigure(hf), ah = { t: 0, tick(dt) { if (!hf.isConnected) return false; ah.t += dt; uh(POSES.walkSlow(ah.t), ah.t); } }; addAnim(ah);
+  $$('.atab').forEach(b => b.onclick = () => {
+    $$('.atab').forEach(x => x.classList.toggle('on', x === b)); $$('.asec').forEach(x => x.hidden = x.dataset.sec !== b.dataset.at);
+    const t = $('#atabs'); if (t) window.scrollTo({ top: Math.max(0, t.getBoundingClientRect().top + window.scrollY - 8), behavior: 'smooth' });
+  });
   /* radar animado */
   const cur = RVAL[sel].slice(), poly = $('#rpoly'), dots = RAX.map((_, i) => $('#rd' + i));
   const rad = { tick(dt) {
@@ -1647,6 +1678,12 @@ function renderMoves() {
       <div style="font-family:var(--disp);font-weight:700;font-size:16px;margin:8px 4px 2px;line-height:1.15">${MOVES[id].n}</div><div class="muted" style="font-size:12.5px;margin:0 4px 4px">${MOVES[id].tag}</div></button>`).join('')}</div></div>`;
   $$('[data-t]').forEach(b => mountMove(b, b.dataset.t, { thumb: true }));
   $$('[data-m]').forEach(b => b.onclick = () => openMove(b.dataset.m));
+  const FAM = [['', 'Todas'], ['Raíz,Peso', 'Raíz y peso'], ['Marcha,Respiración', 'Marcha'], ['Pasos,Equilibrio', 'Pasos'], ['Brazos,Giros,Dirección,Relajación', 'Brazos y giros']];
+  const nav = document.createElement('nav'); nav.className = 'atabs'; $('.wrap').insertBefore(nav, $('.wrap').children[2]);
+  const cards = $$('[data-m]'); let fam = TABST.moves || '';
+  const apply = () => { cards.forEach(c => { const f = MOVES[c.dataset.m].tag.split(' · ')[0]; c.style.display = fam && !fam.split(',').includes(f) ? 'none' : 'block'; }); $$('.atab', nav).forEach(x => x.classList.toggle('on', x.dataset.f === fam)); };
+  FAM.forEach(([f, l]) => { const b = document.createElement('button'); b.className = 'atab'; b.dataset.f = f; b.textContent = l; b.onclick = () => { fam = f; TABST.moves = f; apply(); }; nav.appendChild(b); });
+  apply();
 }
 
 /* ---------- copia de seguridad ---------- */
@@ -2200,6 +2237,7 @@ const F24 = (() => {
       <div class="card"><h3>Si te quedas atrás</h3><ul class="ticks"><li><b>1–2 días perdidos:</b> retoma donde estabas. No dobles la sesión.</li><li><b>1 semana perdida:</b> vuelve al último punto de control superado y repite esa semana.</li><li><b>2 semanas o más:</b> vuelve a la semana anterior al último control superado. La forma no se olvida, solo se enfría.</li><li><b>Un movimiento se resiste:</b> aíslalo en sesiones de 5 minutos. Casi nunca es la memoria: es el peso mal transferido en la transición anterior.</li></ul></div>
       <div class="card"><h3>Después del día 84</h3><ul class="ticks"><li>Practica la forma completa 3–4 veces por semana, no todos los días.</li><li>Una vez por semana, vuelve a los movimientos que peor te salen.</li><li>Pauta general de respiración: inhala al abrir o subir, exhala al cerrar, empujar o bajar.</li><li>Cuando la forma sea automática, busca un instructor o un grupo: hay detalles que solo se ven desde fuera.</li></ul></div>
       <button class="btn small" id="finfo">Sobre la forma, principios y fuentes</button></div>`;
+    tabify($('#app .wrap'), [{ k: 'h', l: 'Hoy', from: '.card' }, { k: 's', l: '12 semanas', from: 'h2.sec2' }, { k: 'a', l: 'Ayuda', from: 'div.card', n: 3 }], { id: 'fhome', end: '.btn.small' });
     animateRings(); bind();
     const pl = $('#fplay'); if (pl) pl.onclick = () => startSession(nd);
     const mk = $('#fmark'); if (mk) mk.onclick = () => { mark(nd); renderHome(); };
@@ -2267,6 +2305,8 @@ const F24 = (() => {
       <p class="muted" style="margin-top:-4px">Toca una postura para ver los pies, las manos y la clave. Las que ya has aprendido llevan ✓.</p>
       ${Object.entries(grp).map(([wi, ns]) => `<h3 class="sec">Semana ${+wi + 1} · ${F24W[wi].t}</h3><div class="card plist">${ns.map(n => { const p = postByN(n); return `<button class="prow ${learned(n) ? 'ok' : ''}" data-p="${n}"><span class="hz">${p.zh}</span><span class="pt"><b>${n}. ${p.es}</b><small>${p.py}${p.reps !== '1 vez' ? ' · ' + p.reps : ''}</small></span><span class="pk">${learned(n) ? '✓' : ''}</span></button>`; }).join('')}</div>`).join('')}
       </div>`;
+    const cw0 = Math.floor(((nextDay() || 84) - 1) / 7);
+    tabify($('#app .wrap'), [{ k: 'g0', l: 'Sem. 1–3', from: 'h3.sec', n: 0 }, { k: 'g1', l: 'Sem. 4–6', from: 'h3.sec', n: 3 }, { k: 'g2', l: 'Sem. 7–9', from: 'h3.sec', n: 6 }, { k: 'g3', l: 'Sem. 10–12', from: 'h3.sec', n: 9 }], { id: 'flist', start: 'g' + Math.min(3, Math.floor(cw0 / 3)) });
     bind(); $$('[data-p]').forEach(b => b.onclick = () => openPost(+b.dataset.p));
   }
   /* reproductor de figura animada. host: contenedor; seq: FIG.seqOf / seqAll; opts: {loop, label(k), onk(k)} */
@@ -2404,6 +2444,7 @@ const F24 = (() => {
         <p class="muted" style="font-size:14px;margin-bottom:6px"><b>Correcciones aplicadas al material de partida:</b></p><ul class="ticks" style="font-size:14.5px">${F24_NOTES.map(x => `<li>${x}</li>`).join('')}</ul>
         <p class="muted" style="font-size:14px;margin:10px 0 0">Los esquemas de pisadas y la posición de brazos y piernas en las figuras animadas son <b>reconstrucciones</b> a partir del diagrama de pasos y de fuentes secundarias, no una verificación de la forma: la secuencia exacta de apoyos, las alturas y los ángulos varían entre escuelas. Los movimientos <b>15, 16, 17, 21 y 23</b> se marcan «por confirmar» por esa razón. Las pautas de respiración y los errores frecuentes por postura son generales del estilo, no una lista cerrada.</p></div>
       <button class="btn primary" id="ib2">Entendido</button></div>`;
+    tabify($('#app .wrap'), [['i1', 'Forma'], ['i2', 'Principios'], ['i3', 'Recorrido'], ['i4', 'Seguridad'], ['i5', 'Fuentes']].map(([k, l], n) => ({ k, l, from: '.card', n })), { id: 'finfo', end: '.btn.primary' });
     $('#ib').onclick = $('#ib2').onclick = () => go('f_home');
   }
 
@@ -2459,6 +2500,7 @@ function renderBreathe() {
       <div class="note"><b>Si notas mareo, hormigueo en manos o labios, opresión o ansiedad:</b> para, vuelve a respirar con normalidad y, si se repite, consulta.</div>
       <p class="muted" style="font-size:13.5px;margin-top:10px"><b>Tai Chi y tensión arterial.</b> El Tai Chi suave suele ser seguro, pero si tienes cardiopatía o tomas medicación para la presión, coméntalo con tu médico antes de empezar el programa.</p></div>
     <p class="muted" style="font-size:13.5px;text-align:center;margin-top:14px">Respira siempre sin forzar. Si notas mareo, hormigueo o ansiedad, vuelve a respirar con normalidad.</p></div>`;
+  tabify($('#app .wrap'), [{ k: 'r', l: 'Respirar', from: '.stage' }, { k: 'c', l: 'Cómo se hace', from: '.card' }, { k: 'a', l: 'Antes de empezar', from: '.card', n: 1 }], { id: 'breathe' });
   const ui = breathUI($('#bbox'), T.pat);
   B.running = false; B.el = 0;
   const btn = $('#go');
